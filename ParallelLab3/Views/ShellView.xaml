@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:cm="http://caliburnmicro.com"
         mc:Ignorable="d"
-        Title="ShellView" Height="750" Width="750">
+        Title="ShellView" Height="650" Width="1500">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="25"></RowDefinition>

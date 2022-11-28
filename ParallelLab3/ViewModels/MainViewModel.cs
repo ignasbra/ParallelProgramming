@@ -1,13 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Caliburn.Micro;
+using LiveChartsCore;
+using LiveChartsCore.SkiaSharpView;
 
 namespace ParallelLab3.ViewModels
 {
-    public class MainViewModel : Screen, IHandle<int>
+    public class MainViewModel : Screen
     {
         private List<CanvasPoint> _points = new List<CanvasPoint>();
 
@@ -31,64 +35,82 @@ namespace ParallelLab3.ViewModels
             }
         }
 
+        public ISeries[] Series { get; set; }
+
+        public string Elapsed { get; set; }
+
         private GameOfLife _gameOfLife;
 
         private IEventAggregator _eventAggregator;
 
         public MainViewModel(IEventAggregator eventAgg)
         {
+            string[] args = Environment.GetCommandLineArgs();
+            var stepLimit = Convert.ToInt32(args[1]);
+            var isWithGUI = args[2] == "true";
+            var threadCount = Convert.ToInt32(args[3]);
+            var size = Convert.ToInt32(args[4]);
+
             _eventAggregator = eventAgg;
             _eventAggregator.SubscribeOnUIThread(this);
-            _gameOfLife = new GameOfLife();
-            Task.Run(async () =>
+            _gameOfLife = new GameOfLife(size);
+
+            var stepsDone = 0;
+
+            var stopWatch = new Stopwatch();
+            stopWatch.Start();
+            var timeSeries = new ObservableCollection<double>();
+            var lineSeries = new LineSeries<double>()
             {
-                var sw = new Stopwatch();
+                GeometryFill = null,
+                GeometryStroke = null,
+                IsHoverable = false,
+            };
+            lineSeries.Values = timeSeries;
+            Series = new ISeries[] { lineSeries };
 
-                while (true)
+            Task.Run(() =>
+            {
+                while (stepsDone < stepLimit)
                 {
-                    await _gameOfLife.MakeStep();
+                    _gameOfLife.MakeStep(threadCount);
+                    stepsDone += 1;
+                    Console.WriteLine($"step : {stepsDone} {stopWatch.ElapsedMilliseconds}");
+                    timeSeries.Add(stopWatch.ElapsedMilliseconds);
 
-                    var el1 = sw.Elapsed;
+                    var points = new List<CanvasPoint>();
 
-                    lock (this)
+                    for (int i = 0; i < size; i++)
                     {
-                        lock (_gameOfLife)
+                        for (int j = 0; j < size; j++)
                         {
-                            _points = new List<CanvasPoint>();
-
-                            for (int i = 0; i < 60; i++)
+                            if (_gameOfLife.CurrentGeneration[i, j] == 1)
                             {
-                                for (int j = 0; j < 60; j++)
-                                {
-                                    if (_gameOfLife.CurrentGeneration[i, j] == 1)
-                                    {
-                                        _points.Add(new CanvasPoint { X = i * 10, Y = j * 10 });
-                                    }
-                                }
-                            }  
+                                points.Add(new CanvasPoint { X = i * 6, Y = j * 6 });
+                            }
                         }
                     }
 
-                    sw.Restart();
-                    await _eventAggregator.PublishOnUIThreadAsync(1);
-                    sw.Stop();
-
-                    var el3 = sw.Elapsed;
-
+                    if (isWithGUI)
+                    {
+                        _points = points;
+                        OnUIThread(delegate
+                        {
+                            OnPropertyChanged(new PropertyChangedEventArgs("Points"));
+                        });
+                    }
                 }
+                Elapsed = stopWatch.ElapsedMilliseconds.ToString();
+                OnUIThread(delegate
+                {
+                    OnPropertyChanged(new PropertyChangedEventArgs("Elapsed"));
+                });
             });
 
+            
+
         }
 
-        public Task HandleAsync(int message, CancellationToken cancellationToken)
-        {
-            lock (this)
-            {
-                NotifyOfPropertyChange(nameof(Points));
-            }
-
-            return Task.CompletedTask;
-        }
     }
 
     public class GameOfLife
@@ -99,10 +121,10 @@ namespace ParallelLab3.ViewModels
 
         private int _x, _y;
 
-        public GameOfLife()
+        public GameOfLife(int size)
         {
-            _x = 60;
-            _y = 60;
+            _x = size;
+            _y = size;
 
             CurrentGeneration = new int[_x, _y];
             nextGeneration = new int[_x, _y];
@@ -126,7 +148,7 @@ namespace ParallelLab3.ViewModels
             }
         }
 
-        public async Task MakeStep()
+        public void MakeStep(int threadCount)
         {
             /*
             Any live cell with fewer than two live neighbours dies, as if by underpopulation.
@@ -144,7 +166,7 @@ namespace ParallelLab3.ViewModels
                 }
             }
 
-            Parallel.ForEach(range, index =>
+            Parallel.ForEach(range, new ParallelOptions { MaxDegreeOfParallelism = threadCount }, index =>
             {
                 var liveNeighbours = CountLiveNeighbours(index.x, index.y, CurrentGeneration);
                 KillIfLessThanTwoLiveNeighbours(index.x, index.y, liveNeighbours);
@@ -152,30 +174,9 @@ namespace ParallelLab3.ViewModels
                 KillIfMoreThanThreeLiveNeighbours(index.x, index.y, liveNeighbours);
                 ResurectIfThreeLiveNeighbours(index.x, index.y, liveNeighbours);
             });
-            lock (this)
-            {
-                CurrentGeneration = nextGeneration;
-                nextGeneration = new int[_x, _y];
-            }
 
-
-            //await Task.Run(() =>
-            //{
-            //    for (int i = 0; i < _x; i++)
-            //    {
-            //        for (int j = 0; j < _y; j++)
-            //        {
-            //            var liveNeighbours = CountLiveNeighbours(i, j, CurrentGeneration);
-            //            KillIfLessThanTwoLiveNeighbours(i, j, CurrentGeneration, liveNeighbours);
-            //            LiveOnIfTwoOrThreeLiveNeighbours(i, j, CurrentGeneration, liveNeighbours);
-            //            KillIfMoreThanThreeLiveNeighbours(i, j, CurrentGeneration, liveNeighbours);
-            //            ResurectIfThreeLiveNeighbours(i, j, CurrentGeneration, liveNeighbours);
-            //        }
-            //    }
-            //    CurrentGeneration = nextGeneration;
-            //    nextGeneration = new int[_x, _y];
-            //}); 
-
+            CurrentGeneration = nextGeneration;
+            nextGeneration = new int[_x, _y];
         }
 
         private void KillIfLessThanTwoLiveNeighbours(int i, int j, int liveNeighbours) 

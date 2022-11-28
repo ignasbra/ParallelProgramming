@@ -3,18 +3,18 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:local="clr-namespace:ParallelLab3.Views"
+             xmlns:local="clr-namespace:ParallelLab3.Views" xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
              mc:Ignorable="d" 
-             d:DesignHeight="300" d:DesignWidth="300">
+             d:DesignHeight="500" d:DesignWidth="1500">
     <UserControl.Resources>
         <DrawingBrush x:Key="FormCanvasGridTile" Stretch="None" TileMode="Tile" 
-                  Viewport="0,0,10,10" ViewportUnits="Absolute">
+                  Viewport="0,0,6,6" ViewportUnits="Absolute">
             <DrawingBrush.Drawing>
                 <GeometryDrawing>
                     <GeometryDrawing.Geometry>
                         <GeometryGroup>
-                            <LineGeometry StartPoint="0,0" EndPoint="10,0" />
-                            <LineGeometry StartPoint="10,0" EndPoint="10,10" />
+                            <LineGeometry StartPoint="0,0" EndPoint="6,0" />
+                            <LineGeometry StartPoint="6,0" EndPoint="6,6" />
                         </GeometryGroup>
                     </GeometryDrawing.Geometry>
                     <GeometryDrawing.Pen>
@@ -25,12 +25,17 @@
             </DrawingBrush.Drawing>
         </DrawingBrush>
     </UserControl.Resources>
-    <Grid>
+    <Grid Width="1500">
         <Grid.RowDefinitions>
-            
+            <RowDefinition Height="500"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-
-        <ItemsControl ItemsSource="{Binding Points}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="500"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        
+        <ItemsControl Grid.Column="0" MinWidth="400" ItemsSource="{Binding Points, UpdateSourceTrigger=PropertyChanged}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <Canvas Background="{StaticResource FormCanvasGridTile}" />
@@ -44,9 +49,15 @@
             </ItemsControl.ItemContainerStyle>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Rectangle Fill="Black" Width="10" Height="10"/>
+                    <Rectangle Fill="Black" Width="6" Height="6"/>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+
+        <lvc:CartesianChart Grid.Column="1" MinWidth="400" TooltipPosition="Hidden"
+        Series="{Binding Series, UpdateSourceTrigger=PropertyChanged}">
+        </lvc:CartesianChart>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding Elapsed}"></TextBlock>
     </Grid>
 </UserControl>
